@@ -11,12 +11,12 @@ class TestLinear(unittest.TestCase):
 
         self.Z_solution = np.array([[10., -3., -16.], [4., -1., -6.], [-2., 1., 4.], [-8., 3., 14.]], dtype="f")
         self.dLdA_solution = np.array([[4., -5.], [4., 4.], [4., 13.], [4., 22.]], dtype="f")
-        self.dLdW_solution = np.array([[28., 30.], [24., 30.], [20., 30.]], dtype="f")
-        self.dLdb_solution = np.array([[2.], [6.], [10.]], dtype="f")
+        self.dLdW_solution = np.array([[7., 7.5], [6., 7.5], [5., 7.5]], dtype="f")
+        self.dLdb_solution = np.array([[0.5], [1.5], [2.5]], dtype="f")
 
         self.atol_threshold = 1e-4
 
-    def test_forward(self):
+    def test_linear_forward(self):
         linear = Linear(2, 3, debug=True)
         linear.W = self.W
         linear.b = self.b
@@ -24,7 +24,7 @@ class TestLinear(unittest.TestCase):
         Z = linear.forward(self.A)
         np.testing.assert_allclose(Z, self.Z_solution, atol=self.atol_threshold)
 
-    def test_backward(self):
+    def test_linear_backward(self):
         linear = Linear(2, 3, debug=True)
         linear.W = self.W
         linear.b = self.b

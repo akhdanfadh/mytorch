@@ -33,8 +33,8 @@ class Linear():
         Returns:
             dLdA (array-like): gradient w.r.t. input of shape (batch_size, in_features)
         """
-        self.dLdW = dLdZ.T @ self.A
-        self.dLdb = dLdZ.T @ self.Ones
+        self.dLdW = (dLdZ.T @ self.A) / self.A.shape[0]
+        self.dLdb = dLdZ.T @ self.Ones / self.A.shape[0]    
         dLdA = dLdZ @ self.W
 
         if self.debug: self.dLdA = dLdA
