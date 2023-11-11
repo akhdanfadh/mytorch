@@ -7,7 +7,8 @@ class MLP0:
     """MLP with a single linear layer of shape (2,3) and ReLU activation
     """
     def __init__(self, debug=False):
-        self.layers = [Linear(2, 3), ReLU()]
+        self.layers = [Linear(2, 3)]
+        self.f = [ReLU()]
         self.debug = debug
 
     def forward(self, A0):
@@ -18,7 +19,7 @@ class MLP0:
             A1 (array-like): output data of shape (batch_size, 3)
         """
         Z0 = self.layers[0].forward(A0)
-        A1 = self.layers[1].forward(Z0)
+        A1 = self.f[0].forward(Z0)
 
         if self.debug: self.Z0, self.A1 = Z0, A1
         return A1
@@ -30,7 +31,7 @@ class MLP0:
         Returns:
             dLdA0 (array-like): gradient w.r.t. input of shape (batch_size, 2)
         """
-        dLdZ0 = self.layers[1].backward(dLdA1)
+        dLdZ0 = self.f[0].backward(dLdA1)
         dLdA0 = self.layers[0].backward(dLdZ0)
 
         if self.debug: self.dLdZ0, self.dLdA0 = dLdZ0, dLdA0
@@ -43,7 +44,8 @@ class MLP1:
     Layer 2: Linear(3, 2)
     """
     def __init__(self, debug=False):
-        self.layers = [Linear(2, 3), ReLU(), Linear(3, 2), ReLU()]
+        self.layers = [Linear(2, 3), Linear(3, 2)]
+        self.f = [ReLU(), ReLU()]
         self.debug = debug
     
     def forward(self, A0):
@@ -54,9 +56,9 @@ class MLP1:
             A2 (array-like): output data of shape (batch_size, 2)
         """
         Z0 = self.layers[0].forward(A0)
-        A1 = self.layers[1].forward(Z0)
-        Z1 = self.layers[2].forward(A1)
-        A2 = self.layers[3].forward(Z1)
+        A1 = self.f[0].forward(Z0)
+        Z1 = self.layers[1].forward(A1)
+        A2 = self.f[1].forward(Z1)
 
         if self.debug: self.Z0, self.A1, self.Z1, self.A2 = Z0, A1, Z1, A2
         return A2
@@ -68,9 +70,9 @@ class MLP1:
         Returns:
             dLdA0 (array-like): gradient w.r.t. input of shape (batch_size, 2)
         """
-        dLdZ1 = self.layers[3].backward(dLdA2)
-        dLdA1 = self.layers[2].backward(dLdZ1)
-        dLdZ0 = self.layers[1].backward(dLdA1)
+        dLdZ1 = self.f[1].backward(dLdA2)
+        dLdA1 = self.layers[1].backward(dLdZ1)
+        dLdZ0 = self.f[0].backward(dLdA1)
         dLdA0 = self.layers[0].backward(dLdZ0)
 
         if self.debug:  
@@ -90,12 +92,13 @@ class MLP4:
     """
     def __init__(self, debug=False):
         self.layers = [
-            Linear(2, 4), ReLU(),
-            Linear(4, 8), ReLU(),
-            Linear(8, 8), ReLU(),
-            Linear(8, 4), ReLU(),
-            Linear(4, 2), ReLU()
+            Linear(2, 4),
+            Linear(4, 8),
+            Linear(8, 8),
+            Linear(8, 4),
+            Linear(4, 2),
         ]
+        self.f = [ReLU() for _ in range(5)]
         self.debug = debug
     
     def forward(self, A):
@@ -105,10 +108,11 @@ class MLP4:
         Returns:
             A (array-like): output data of shape (batch_size, 2)
         """
-        if self.debug: self.A = [A]
+        if self.debug: self.Z, self.A = [], [A]
         for i in range(len(self.layers)):
-            A = self.layers[i].forward(A)
-            if self.debug: self.A.append(A)
+            Z = self.layers[i].forward(A)
+            A = self.f[i].forward(Z)
+            if self.debug: self.Z.append(Z), self.A.append(A)
         return A
     
     def backward(self, dLdA):
@@ -118,8 +122,11 @@ class MLP4:
         Returns:
             dLdA (array-like): gradient w.r.t. input of shape (batch_size, 2)
         """
-        if self.debug: self.dLdA = [dLdA]
+        if self.debug: self.dLdZ, self.dLdA = [], [dLdA]
         for i in reversed(range(len(self.layers))):
-            dLdA = self.layers[i].backward(dLdA)
-            if self.debug: self.dLdA = [dLdA] + self.dLdA # order matters, prepend
+            dLdZ = self.f[i].backward(dLdA)
+            dLdA = self.layers[i].backward(dLdZ)
+            if self.debug: # order matters, prepend
+                self.dLdZ = [dLdZ] + self.dLdZ
+                self.dLdA = [dLdA] + self.dLdA
         return dLdA

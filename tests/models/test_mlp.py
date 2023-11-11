@@ -1,171 +1,269 @@
 import unittest
+import pickle
+import os
 import numpy as np
-import torch
 from mytorch.models.mlp import MLP0, MLP1, MLP4
 
+pkl_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'test_data')
+
 class TestMLP0(unittest.TestCase):
-    
+
     def setUp(self):
         self.atol_threshold = 1e-4
-        self.n_tests = 5  # Number of test cases
+        self.A0 = np.array([
+            [-4., -3.],
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.]], dtype="f")
+        self.W0 = np.array([
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.]], dtype="f")
+        self.b0 = np.array([
+            [-1.],
+            [ 0.],
+            [ 1.]], dtype="f")
+        self.dLdA1 = np.array([
+            [-4., -3., -2.],
+            [-1., -0.,  1.],
+            [ 2.,  3.,  4.],
+            [ 5.,  6.,  7.]], dtype="f")
 
     def test_mlp0_forward_backward(self):
-        for i in range(self.n_tests):
-            A0 = np.random.randn(4, 2).astype("f")
-            W0 = np.random.randn(3, 2).astype("f")
-            b0 = np.random.randn(3, ).astype("f")
-            A0_tensor = torch.tensor(A0, requires_grad=True)
+        mlp0 = MLP0(debug=True)
+        mlp0.layers[0].W = self.W0
+        mlp0.layers[0].b = self.b0
 
-            # Torch linear for correct answer
-            torch_linear = torch.nn.Linear(2, 3)
-            torch_linear.weight.data = torch.tensor(W0)
-            torch_linear.bias.data = torch.tensor(b0)
-            torch_linear.requires_grad_()
-            Z0_tensor = torch_linear(A0_tensor)
-            A1_tensor = torch.relu(Z0_tensor)
+        # Forward pass
+        A1 = mlp0.forward(self.A0)
+        Z0 = mlp0.Z0
 
-            # Student's MLP0
-            mlp0 = MLP0(debug=True)
-            mlp0.layers[0].W = W0
-            mlp0.layers[0].b = b0.reshape(-1, 1)
+        # Expected forward pass outputs
+        Z0_solution = np.array([
+            [ 10.,  -3., -16.],
+            [  4.,  -1.,  -6.],
+            [ -2.,   1.,   4.],
+            [ -8.,   3.,  14.]], dtype="f")
+        A1_solution =np.array([
+            [10.,  0.,  0.],
+            [ 4.,  0.,  0.],
+            [ 0.,  1.,  4.],
+            [ 0.,  3., 14.]], dtype="f")
 
-            A1_ = mlp0.forward(A0)
-            Z0_ = mlp0.Z0
+        # Backward pass
+        mlp0.backward(self.dLdA1)
+        dLdZ0 = mlp0.dLdZ0
+        dLdA0 = mlp0.dLdA0
+        dLdW0 = mlp0.layers[0].dLdW
+        dLdb0 = mlp0.layers[0].dLdb
 
-            # Check forward pass
-            self.assertTrue(np.allclose(Z0_tensor.detach().numpy(), Z0_, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(A1_tensor.detach().numpy(), A1_, atol=self.atol_threshold))
+        # Expected backward pass outputs
+        dLdZ0_solution = np.array([
+            [-4., -0., -0.],
+            [-1., -0.,  0.],
+            [ 0.,  3.,  4.],
+            [ 0.,  6.,  7.]], dtype="f")
+        dLdA0_solution = np.array([
+            [ 8.,  4.],
+            [ 2.,  1.],
+            [ 8., 15.],
+            [14., 27.]], dtype="f")
+        dLdW0_solution = np.array([
+            [4.5,  3.25],
+            [3. ,  5.25],
+            [3.5,  6.25]], dtype="f")
+        dLdb0_solution = np.array([
+            [-1.25],
+            [ 2.25],
+            [ 2.75]], dtype="f")
 
-            # Backward pass
-            dLdA1 = np.random.randn(4, 3).astype("f")
-            dA1dZ0 = torch.autograd.grad(A1_tensor, Z0_tensor, grad_outputs=torch.ones_like(A1_tensor))[0].numpy()
-            dLdZ0 = dLdA1 * dA1dZ0
-            Z0_tensor.backward(gradient=torch.tensor(dLdZ0))
-
-            mlp0.backward(dLdA1)
-
-            # Check backward pass
-            self.assertTrue(np.allclose(dLdZ0, mlp0.dLdZ0, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(A0_tensor.grad.data.numpy(), mlp0.dLdA0, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(torch_linear.weight.grad.data.numpy(), mlp0.layers[0].dLdW, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(torch_linear.bias.grad.data.numpy().reshape(-1, 1), mlp0.layers[0].dLdb, atol=self.atol_threshold))
+        # Assertions
+        self.assertTrue(np.allclose(Z0, Z0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(A1, A1_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdZ0, dLdZ0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdA0, dLdA0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdW0, dLdW0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdb0, dLdb0_solution, atol=self.atol_threshold))
 
 
 class TestMLP1(unittest.TestCase):
 
     def setUp(self):
         self.atol_threshold = 1e-4
-        self.n_tests = 5  # Number of test cases
-
+        self.A0 = np.array([
+            [-4., -3.],
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.]], dtype="f")
+        self.W0 = np.array([
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.]], dtype="f")
+        self.b0 = np.array([
+            [-1.],
+            [ 0.],
+            [ 1.]], dtype="f")
+        self.W1 = np.array([
+            [-2., -1., 0],
+            [ 1.,  2., 3]], dtype="f")
+        self.b1 = np.array([
+            [-1.],
+            [ 1.]], dtype="f")
+        self.dLdA2 = np.array([
+            [-4., -3.],
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.]], dtype="f")
+        
     def test_mlp1_forward_backward(self):
-        for i in range(self.n_tests):
-            A0 = np.random.randn(4, 2).astype("f")
-            W0 = np.random.randn(3, 2).astype("f")
-            b0 = np.random.randn(3, ).astype("f")
-            W1 = np.random.randn(2, 3).astype("f")
-            b1 = np.random.randn(2, ).astype("f")
-            A0_tensor = torch.tensor(A0, requires_grad=True)
+        mlp1 = MLP1(debug=True)
+        mlp1.layers[0].W = self.W0
+        mlp1.layers[0].b = self.b0
+        mlp1.layers[1].W = self.W1
+        mlp1.layers[1].b = self.b1
 
-            # Torch linear for correct answer
-            torch_linear0 = torch.nn.Linear(2, 3)
-            torch_linear0.weight.data = torch.tensor(W0)
-            torch_linear0.bias.data = torch.tensor(b0)
-            torch_linear0.requires_grad_()
-            torch_linear1 = torch.nn.Linear(3, 2)
-            torch_linear1.weight.data = torch.tensor(W1)
-            torch_linear1.bias.data = torch.tensor(b1)
-            torch_linear1.requires_grad_()
-            Z0_tensor = torch_linear0(A0_tensor)
-            A1_tensor = torch.relu(Z0_tensor)
-            A1_tensor_copy = torch.tensor(A1_tensor.detach().numpy(), requires_grad=True)
-            Z1_tensor = torch_linear1(A1_tensor_copy)
-            A2_tensor = torch.relu(Z1_tensor)
+        # Forward pass
+        A2 = mlp1.forward(self.A0)
+        Z0 = mlp1.Z0
+        A1 = mlp1.A1
+        Z1 = mlp1.Z1
 
-            # Student's MLP1
-            mlp1 = MLP1(debug=True)
-            mlp1.layers[0].W = W0
-            mlp1.layers[0].b = b0.reshape(-1, 1)
-            mlp1.layers[2].W = W1
-            mlp1.layers[2].b = b1.reshape(-1, 1)
+        # Expected forward pass outputs
+        Z0_solution = np.array([
+            [ 10.,  -3., -16.],
+            [  4.,  -1.,  -6.],
+            [ -2.,   1.,   4.],
+            [ -8.,   3.,  14.]], dtype="f")
+        A1_solution = np.array([
+            [10.,  0.,  0.],
+            [ 4.,  0.,  0.],
+            [ 0.,  1.,  4.],
+            [ 0.,  3., 14.]], dtype="f")
+        Z1_solution = np.array([
+            [-21.,  11.],
+            [ -9.,   5.],
+            [ -2.,  15.],
+            [ -4.,  49.]], dtype="f")
+        A2_solution = np.array([
+            [ 0., 11.],
+            [ 0.,  5.],
+            [ 0., 15.],
+            [ 0., 49.]], dtype="f")
+        
+        # Backward pass
+        mlp1.backward(self.dLdA2)
+        dLdZ1 = mlp1.dLdZ1
+        dLdA1 = mlp1.dLdA1
+        dLdZ0 = mlp1.dLdZ0
+        dLdA0 = mlp1.dLdA0
+        dLdW0 = mlp1.layers[0].dLdW
+        dLdb0 = mlp1.layers[0].dLdb
 
-            A2_ = mlp1.forward(A0)
-
-            # Check forward pass
-            self.assertTrue(np.allclose(Z0_tensor.detach().numpy(), mlp1.Z0, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(A1_tensor.detach().numpy(), mlp1.A1, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(Z1_tensor.detach().numpy(), mlp1.Z1, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(A2_tensor.detach().numpy(), A2_, atol=self.atol_threshold))
-
-            # Backward pass
-            dLdA2 = np.random.randn(4, 2).astype("f")
-            dA2dZ1 = torch.autograd.grad(A2_tensor, Z1_tensor, grad_outputs=torch.ones_like(A2_tensor))[0].numpy()
-            dLdZ1 = dLdA2 * dA2dZ1
-            Z1_tensor.backward(gradient=torch.tensor(dLdZ1), retain_graph=True)
-            dLdA1 = A1_tensor_copy.grad.data.numpy()
-            dA1dZ0 = torch.autograd.grad(A1_tensor, Z0_tensor, grad_outputs=torch.ones_like(A1_tensor))[0].numpy()
-            dLdZ0 = dLdA1 * dA1dZ0
-            Z0_tensor.backward(gradient=torch.tensor(dLdZ0), retain_graph=True)
-            dLdA0 = A0_tensor.grad.data.numpy()
-
-            mlp1.backward(dLdA2)
-
-            # Check backward pass
-            self.assertTrue(np.allclose(dLdZ1, mlp1.dLdZ1, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(dLdA1, mlp1.dLdA1, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(dLdZ0, mlp1.dLdZ0, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(dLdA0, mlp1.dLdA0, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(torch_linear0.weight.grad.data.numpy(), mlp1.layers[0].dLdW, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(torch_linear0.bias.grad.data.numpy().reshape(-1, 1), mlp1.layers[0].dLdb, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(torch_linear1.weight.grad.data.numpy(), mlp1.layers[2].dLdW, atol=self.atol_threshold))
-            self.assertTrue(np.allclose(torch_linear1.bias.grad.data.numpy().reshape(-1, 1), mlp1.layers[2].dLdb, atol=self.atol_threshold))
+        # Expected backward pass outputs
+        dLdZ1_solution = np.array([
+            [-0., -3.],
+            [-0., -1.],
+            [ 0.,  1.],
+            [ 0.,  3.]], dtype="f")
+        dLdA1_solution = np.array([
+            [-3., -6., -9.],
+            [-1., -2., -3.],
+            [ 1.,  2.,  3.],
+            [ 3.,  6.,  9.]], dtype="f")
+        dLdZ0_solution = np.array([
+            [-3., -0., -0.],
+            [-1., -0., -0.],
+            [ 0.,  2.,  3.],
+            [ 0.,  6.,  9.]], dtype="f")
+        dLdA0_solution = np.array([
+            [ 6.,  3.],
+            [ 2.,  1.],
+            [ 6., 11.],
+            [18., 33.]], dtype="f")
+        dLdW0_solution = np.array([
+            [3.5, 2.5],
+            [3. , 5. ],
+            [4.5, 7.5]], dtype="f")
+        dLdb0_solution = np.array([
+            [-1.],
+            [ 2.],
+            [ 3.]], dtype="f")
+        
+        # Assertions
+        self.assertTrue(np.allclose(Z0, Z0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(A1, A1_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(Z1, Z1_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(A2, A2_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdZ1, dLdZ1_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdA1, dLdA1_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdZ0, dLdZ0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdA0, dLdA0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdW0, dLdW0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdb0, dLdb0_solution, atol=self.atol_threshold))
 
 
 class TestMLP4(unittest.TestCase):
 
     def setUp(self):
         self.atol_threshold = 1e-4
-        self.n_tests = 5  # Number of test cases
+        self.A0 = np.array([
+            [-4., -3.],
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.],
+            [ 4.,  5.]], dtype="f")
+        with open(f"{pkl_dir}/mlp4_W.pkl", "rb") as f:
+            self.W0, self.W1, self.W2, self.W3, self.W4 = pickle.load(f)
+        with open(f"{pkl_dir}/mlp4_b.pkl", "rb") as f:
+            self.b0, self.b1, self.b2, self.b3, self.b4 = pickle.load(f)
+        self.dLdA5 = np.array([
+            [-4., -3.],
+            [-2., -1.],
+            [ 0.,  1.],
+            [ 2.,  3.],
+            [ 4.,  5.]], dtype="f")
 
     def test_mlp4_forward_backward(self):
-        for i in range(self.n_tests):
-            A0 = np.random.randn(4, 2).astype("f")
-            W0, W1, W2, W3, W4 = [np.random.randn(*shape).astype("f") for shape in [(4, 2), (8, 4), (8, 8), (4, 8), (2, 4)]]
-            b0, b1, b2, b3, b4 = [np.random.randn(size).astype("f") for size in [4, 8, 8, 4, 2]]
-            A0_tensor = torch.tensor(A0, requires_grad=True)
+        mlp4 = MLP4(debug=True)
+        for i in range(len(mlp4.layers)):
+            mlp4.layers[i].W = getattr(self, f"W{i}")
+            mlp4.layers[i].b = getattr(self, f"b{i}")
+        
+        # Forward pass
+        A5 = mlp4.forward(self.A0)
 
-            # Setting up torch layers for correct answers
-            torch_layers = [torch.nn.Linear(n_in, n_out) for n_in, n_out in [(2, 4), (4, 8), (8, 8), (8, 4), (4, 2)]]
-            for layer, W, b in zip(torch_layers, [W0, W1, W2, W3, W4], [b0, b1, b2, b3, b4]):
-                layer.weight.data = torch.tensor(W)
-                layer.bias.data = torch.tensor(b)
-                layer.requires_grad_()
+        # Expected forward pass outputs
+        with open(f"{pkl_dir}/mlp4_sol_Z.pkl", "rb") as f:
+            mlp4_sol_Z = pickle.load(f)
+        with open(f"{pkl_dir}/mlp4_sol_A.pkl", "rb") as f:
+            mlp4_sol_A = pickle.load(f)
 
-            # Forward pass
-            A_tensor = A0_tensor
-            for layer in torch_layers:
-                Z_tensor = layer(A_tensor)
-                A_tensor = torch.relu(Z_tensor)
+        # Backward pass
+        mlp4.backward(self.dLdA5)
+        dLdW0, dLdb0 = mlp4.layers[0].dLdW, mlp4.layers[0].dLdb
 
-            # Student's MLP4
-            mlp4 = MLP4(debug=True)
-            mlp4.layers[0].W, mlp4.layers[2].W, mlp4.layers[4].W, mlp4.layers[6].W, mlp4.layers[8].W = W0, W1, W2, W3, W4
-            mlp4.layers[0].b, mlp4.layers[2].b, mlp4.layers[4].b, mlp4.layers[6].b, mlp4.layers[8].b = b0.reshape(-1, 1), b1.reshape(-1, 1), b2.reshape(-1, 1), b3.reshape(-1, 1), b4.reshape(-1, 1)
-            A5_ = mlp4.forward(A0)
-
-            # Check forward pass
-            self.assertTrue(np.allclose(A_tensor.detach().numpy(), A5_, atol=self.atol_threshold))
-
-            # Backward pass
-            dLdA5 = np.random.randn(4, 2).astype("f")
-            dLdA5_tensor = torch.tensor(dLdA5)
-            A_tensor.backward(dLdA5_tensor)
-            mlp4.backward(dLdA5)
-
-            # Check backward pass
-            for layer, mlp_layer in zip(torch_layers, mlp4.layers[::2]):  # Compare only the linear layers
-                self.assertTrue(np.allclose(layer.weight.grad.data.numpy(), mlp_layer.dLdW, atol=self.atol_threshold))
-                self.assertTrue(np.allclose(layer.bias.grad.data.numpy().reshape(-1, 1), mlp_layer.dLdb, atol=self.atol_threshold))
-
+        # Expected backward pass outputs
+        with open(f"{pkl_dir}/mlp4_sol_dLdZ.pkl", "rb") as f:
+            mlp4_sol_dLdZ = pickle.load(f)
+        with open(f"{pkl_dir}/mlp4_sol_dLdA.pkl", "rb") as f:
+            mlp4_sol_dLdA = pickle.load(f)
+        with open(f"{pkl_dir}/mlp4_sol_dLdW.pkl", "rb") as f:
+            dLdW0_solution = pickle.load(f)[0]
+        with open(f"{pkl_dir}/mlp4_sol_dLdb.pkl", "rb") as f:
+            dLdb0_solution = pickle.load(f)[0]
+        
+        # Assertions
+        for get_Z, sol_Z in zip(mlp4.Z, mlp4_sol_Z):
+            self.assertTrue(np.allclose(get_Z, sol_Z, atol=self.atol_threshold))
+        for get_A, sol_A in zip(mlp4.A[1:], mlp4_sol_A):
+            self.assertTrue(np.allclose(get_A, sol_A, atol=self.atol_threshold))
+        for get_dLdZ, sol_dLdZ in zip(mlp4.dLdZ, mlp4_sol_dLdZ):
+            self.assertTrue(np.allclose(get_dLdZ, sol_dLdZ, atol=self.atol_threshold))
+        for get_dLdA, sol_dLdA in zip(mlp4.dLdA, mlp4_sol_dLdA):
+            self.assertTrue(np.allclose(get_dLdA, sol_dLdA, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdW0, dLdW0_solution, atol=self.atol_threshold))
+        self.assertTrue(np.allclose(dLdb0, dLdb0_solution, atol=self.atol_threshold))
+        
 
 if __name__ == '__main__':
     unittest.main()
