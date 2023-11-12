@@ -7,7 +7,7 @@ from mytorch.optim.adamW import AdamW
 
 pkl_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'test_data')
 
-class TestAdam(unittest.TestCase):
+class TestAdamW(unittest.TestCase):
 
     def setUp(self):
         self.atol_threshold = 1e-4
@@ -48,7 +48,7 @@ class TestAdam(unittest.TestCase):
             mlp4.layers[i].dLdb.fill(0.0)
         mlp4.backward(self.dLdA5)
 
-    def test_adam_step(self):
+    def test_adamW_step(self):
         mlp4 = MLP4(debug=True)
         optimizer = AdamW(mlp4,
                           lr=self.lr,
