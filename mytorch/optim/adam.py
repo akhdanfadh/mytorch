@@ -13,7 +13,6 @@ class Adam():
             eps (float): epsilon parameter for Adam
         """
         self.l = model.layers
-        self.L = len(model.layers)
         self.beta1 = beta1
         self.beta2 = beta2
         self.eps = eps
